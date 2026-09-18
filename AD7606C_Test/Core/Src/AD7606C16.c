@@ -69,22 +69,18 @@ HAL_StatusTypeDef AD7606C16_Init(AD7606C16_Handle_t *hadc)
 	{
 	    return HAL_ERROR;
 	}
-	// 1. Set the Operating Mode
 	reg = (hadc->Init.op_mode << __AD7606C16_OPMODE_POS);
 
 	if (hadc->Init.dout_mode > AD7606C16_DOUTX_8)
 	{
 		return HAL_ERROR;
 	}
-	// 2. Set Dout Mode
 	reg |= (hadc->Init.dout_mode  << __AD7606C16_DOUT_MODE_POS);
 
-	// 3. Set Ext OC Clk
 	if (hadc->Init.ext_os_clk)
 	{
 		reg |= (1U << __AD7606C16_EXT_OS_CLOCK_POS);
 	}
-	// 4. Set Status Header
 	if (hadc->Init.status_header)
 	{
 		reg |= (1U << __AD7606C16_STATUS_HEAD_POS);
@@ -102,18 +98,12 @@ HAL_StatusTypeDef AD7606C16_Init(AD7606C16_Handle_t *hadc)
  * @retval HAL_OK    Register written successfully.
  * @retval HAL_ERROR Invalid parameters or SPI communication failure.
  */
-static HAL_StatusTypeDef AD7606C16_Write(AD7606C16_Handle_t *hadc, AD7606C16_RegTypeDef_t reg, uint8_t data)
+static HAL_StatusTypeDef AD7606C16_WriteReg(AD7606C16_Handle_t *hadc, AD7606C16_RegTypeDef_t reg, uint8_t data)
 {
-	if ((hadc == NULL) || (hadc->hspi == NULL)||(hadc->CS_Port == NULL))
-	{
-		return HAL_ERROR;
-	}
 	HAL_StatusTypeDef status;
-
 	uint16_t tx;
-	tx = (((uint16_t)__AD7606C16_WEN << __AD7606C16_WEN_POS) |
-		  ((uint16_t)__AD7606C16_WRITE << __AD7606C16_WRITE_READ_POS) |
-		  ((uint16_t)reg << __AD7606C16_ADDR_POS) |
+
+	tx = (((uint16_t)reg << __AD7606C16_ADDR_POS) |
 		  ((uint16_t)data));
 
 	hadc->CS_Port->BSRR = ((uint32_t)hadc->CS_Pin<<16);
@@ -137,7 +127,7 @@ static HAL_StatusTypeDef AD7606C16_Write(AD7606C16_Handle_t *hadc, AD7606C16_Reg
  * @retval HAL_OK    Register read successfully.
  * @retval HAL_ERROR Invalid parameters or SPI communication failure.
  */
-HAL_StatusTypeDef AD7606C16_Read_Reg(AD7606C16_Handle_t *hadc,AD7606C16_RegTypeDef_t ad7606_reg,uint8_t *pData)
+HAL_StatusTypeDef AD7606C16_ReadReg(AD7606C16_Handle_t *hadc,AD7606C16_RegTypeDef_t ad7606_reg,uint8_t *pData)
 {
 	if ((hadc == NULL) || (hadc->hspi == NULL)||(hadc->CS_Port == NULL)||(pData == NULL))
 	{
@@ -147,9 +137,9 @@ HAL_StatusTypeDef AD7606C16_Read_Reg(AD7606C16_Handle_t *hadc,AD7606C16_RegTypeD
 	uint16_t tx2 = 0x0000;
 	uint16_t rx_buff = 0;
 	HAL_StatusTypeDef status;
-	tx = (((uint16_t)__AD7606C16_WEN << __AD7606C16_WEN_POS) |
-			((uint16_t)__AD7606C16_READ << __AD7606C16_WRITE_READ_POS) |
+	tx = (((uint16_t)__AD7606C16_READ << __AD7606C16_WRITE_READ_POS) |
 			((uint16_t)ad7606_reg << __AD7606C16_ADDR_POS));
+
 	hadc->CS_Port->BSRR = hadc->CS_Pin<<16;
 	status = HAL_SPI_TransmitReceive(hadc->hspi,(uint8_t*)&tx,(uint8_t*)&rx_buff, 1, HAL_MAX_DELAY);
 	if(status != HAL_OK)
@@ -158,6 +148,7 @@ HAL_StatusTypeDef AD7606C16_Read_Reg(AD7606C16_Handle_t *hadc,AD7606C16_RegTypeD
 	}
 	status = HAL_SPI_TransmitReceive(hadc->hspi,(uint8_t*)&tx2,(uint8_t*)&rx_buff, 1, HAL_MAX_DELAY);
 	hadc->CS_Port->BSRR = hadc->CS_Pin;
+
 	*pData = (uint8_t)rx_buff;
 	return status;
 }
@@ -212,8 +203,8 @@ HAL_StatusTypeDef AD7606C16_Set_Ch_Range(AD7606C16_Handle_t *hadc,AD7606C16_Chan
 	}
 
 	HAL_StatusTypeDef status;
-	uint16_t reg=0;
-	status = AD7606C16_Read_Reg(hadc,(AD7606_REG_RANGE_CH1_CH2 + (ad7606c_channel_no/2)),(uint8_t*)&reg);
+	uint8_t reg = 0;
+	status = AD7606C16_ReadReg(hadc,(AD7606_REG_RANGE_CH1_CH2 + (ad7606c_channel_no/2)),&reg);
 	if(status != HAL_OK)
 	{
 		return status;
@@ -229,57 +220,7 @@ HAL_StatusTypeDef AD7606C16_Set_Ch_Range(AD7606C16_Handle_t *hadc,AD7606C16_Chan
 	    reg &= __LOWER_NIBBLE_MASK;
 	    reg |= (ad7606c_range << 4);
 	}
-
-	status = AD7606C16_Write(hadc,(AD7606_REG_RANGE_CH1_CH2 + (ad7606c_channel_no/2)),reg);
-	return status;
-}
-/**
- * @brief  Configures the phase calibration value of a specified channel.
- *
- * @param[in] hadc       Pointer to the AD7606C-16 handle structure.
- * @param[in] channel_no ADC channel to configure.
- * @param[in] phase      Phase calibration value (0x00 to 0xFF).
- *
- * @retval HAL_OK    Phase calibration updated successfully.
- * @retval HAL_ERROR Invalid parameters or SPI communication failure.
- */
-HAL_StatusTypeDef AD7606C16_Set_Ch_Phase_Calib(AD7606C16_Handle_t *hadc,AD7606C16_Channel_t ad7606c_channel_no,uint8_t phase)
-{
-	if(hadc == NULL || hadc->hspi == NULL || hadc->CS_Port == NULL)
-	{
-	    return HAL_ERROR;
-	}
-
-	if(ad7606c_channel_no > AD7606C_CHANNEL_NO_8)
-	{
-	    return HAL_ERROR;
-	}
-
-	return AD7606C16_Write(hadc,(AD7606C16_RegTypeDef_t)(AD7606_REG_CH1_PHASE + ad7606c_channel_no), phase);
-}
-/**
- * @brief  Configures the offset calibration value of a specified channel.
- *
- * @param[in] hadc       Pointer to the AD7606C-16 handle structure.
- * @param[in] channel_no ADC channel to configure.
- * @param[in] offset     Offset calibration value.
- *
- * @retval HAL_OK    Offset calibration updated successfully.
- * @retval HAL_ERROR Invalid parameters or SPI communication failure.
- */
-HAL_StatusTypeDef AD7606C16_Set_Ch_Offset_Calib(AD7606C16_Handle_t *hadc,AD7606C16_Channel_t ad7606c_channel_no,uint8_t offset)
-{
-	if(hadc == NULL || hadc->hspi == NULL || hadc->CS_Port == NULL)
-	{
-	    return HAL_ERROR;
-	}
-
-	if(ad7606c_channel_no > AD7606C_CHANNEL_NO_8)
-	{
-	    return HAL_ERROR;
-	}
-
-	return AD7606C16_Write(hadc,(AD7606C16_RegTypeDef_t)(AD7606_REG_CH1_OFFSET + ad7606c_channel_no), offset);
+	return AD7606C16_Write(hadc,(AD7606_REG_RANGE_CH1_CH2 + (ad7606c_channel_no/2)),reg);
 }
 /**
  * @brief  Configures the gain calibration value of a specified channel.
@@ -307,30 +248,53 @@ HAL_StatusTypeDef AD7606C16_Set_Ch_Gain_Calib(AD7606C16_Handle_t *hadc,AD7606C16
 	{
 		return HAL_ERROR;
 	}
-
 	return AD7606C16_Write(hadc,(AD7606C16_RegTypeDef_t)(AD7606_REG_CH1_GAIN + ad7606c_channel_no), gain);
 }
-
-HAL_StatusTypeDef AD7606_Get_Vltg_Value(AD7606C16_Handle_t *hadc,uint16_t *pData)
+/**
+ * @brief  Configures the offset calibration value of a specified channel.
+ *
+ * @param[in] hadc       Pointer to the AD7606C-16 handle structure.
+ * @param[in] channel_no ADC channel to configure.
+ * @param[in] offset     Offset calibration value.
+ *
+ * @retval HAL_OK    Offset calibration updated successfully.
+ * @retval HAL_ERROR Invalid parameters or SPI communication failure.
+ */
+HAL_StatusTypeDef AD7606C16_Set_Ch_Offset_Calib(AD7606C16_Handle_t *hadc,AD7606C16_Channel_t ad7606c_channel_no,uint8_t offset)
 {
 	if(hadc == NULL || hadc->hspi == NULL || hadc->CS_Port == NULL)
 	{
-		return HAL_ERROR;
+	    return HAL_ERROR;
 	}
-	HAL_StatusTypeDef status;
 
-	hadc->CONVST_Port->BSRR = (uint32_t)hadc->CONVST_Pin;
-	hadc->CONVST_Port->BSRR = (uint32_t)hadc->CONVST_Pin<<16;
+	if(ad7606c_channel_no > AD7606C_CHANNEL_NO_8)
+	{
+	    return HAL_ERROR;
+	}
 
-	while(hadc->BUSY_Port->IDR & hadc->BUSY_Pin);
-	HAL_Delay(1);
-	hadc->CS_Port->BSRR = ((uint32_t)hadc->CS_Pin << 16);
-
-	status = HAL_SPI_Receive(hadc->hspi,(uint8_t*)pData,8,HAL_MAX_DELAY);
-
-	hadc->CS_Port->BSRR = hadc->CS_Pin;
-
-	return status;
+	return AD7606C16_Write(hadc,(AD7606C16_RegTypeDef_t)(AD7606_REG_CH1_OFFSET + ad7606c_channel_no), offset);
+}
+/**
+ * @brief  Configures the phase calibration value of a specified channel.
+ *
+ * @param[in] hadc       Pointer to the AD7606C-16 handle structure.
+ * @param[in] channel_no ADC channel to configure.
+ * @param[in] phase      Phase calibration value (0x00 to 0xFF).
+ *
+ * @retval HAL_OK    Phase calibration updated successfully.
+ * @retval HAL_ERROR Invalid parameters or SPI communication failure.
+ */
+HAL_StatusTypeDef AD7606C16_Set_Ch_Phase_Calib(AD7606C16_Handle_t *hadc,AD7606C16_Channel_t ad7606c_channel_no,uint8_t phase)
+{
+	if(hadc == NULL || hadc->hspi == NULL || hadc->CS_Port == NULL)
+	{
+	    return HAL_ERROR;
+	}
+	if(ad7606c_channel_no > AD7606C_CHANNEL_NO_8)
+	{
+	    return HAL_ERROR;
+	}
+	return AD7606C16_Write(hadc,(AD7606C16_RegTypeDef_t)(AD7606_REG_CH1_PHASE + ad7606c_channel_no), phase);
 }
 /**
  * @brief  Enables or disables a digital diagnostic function of the AD7606C-16.
@@ -361,7 +325,7 @@ HAL_StatusTypeDef AD7606C16_Set_Digital_Diag(AD7606C16_Handle_t *hadc,AD7606C16_
 
 	HAL_StatusTypeDef status;
 	uint8_t rx;
-	status = AD7606C16_Read_Reg(hadc, AD7606_REG_DIGITAL_DIAG_ENABLE,&rx);
+	status = AD7606C16_ReadReg(hadc, AD7606_REG_DIGITAL_DIAG_ENABLE,&rx);
 	if(status != HAL_OK)
 	{
 		return status;
@@ -395,7 +359,7 @@ uint8_t AD7606C16_Get_Digital_Diag_Err(AD7606C16_Handle_t *hadc,AD7606C16_Error_
 {
 	HAL_StatusTypeDef status;
 	uint8_t rx;
-	status = AD7606C16_Read_Reg(hadc,AD7606_REG_DIGITAL_DIAG_ERR, &rx);
+	status = AD7606C16_ReadReg(hadc,AD7606_REG_DIGITAL_DIAG_ERR, &rx);
 	if(status != HAL_OK)
 	{
 		return 0x99;
@@ -435,7 +399,7 @@ HAL_StatusTypeDef AD7606C16_Set_Open_Detect_En_Di(AD7606C16_Handle_t *hadc,AD760
 	HAL_StatusTypeDef status;
 	uint8_t rx;
 
-	status = AD7606C16_Read_Reg(hadc, AD7606_REG_OPEN_DETECT_ENABLE,&rx);
+	status = AD7606C16_ReadReg(hadc, AD7606_REG_OPEN_DETECT_ENABLE,&rx);
 	if(status != HAL_OK)
 	{
 		return status;
@@ -469,7 +433,7 @@ uint8_t AD7606C16_Get_Open_Detect(AD7606C16_Handle_t *hadc,AD7606C16_Channel_t a
 {
 	HAL_StatusTypeDef status;
 	uint8_t rx;
-	status = AD7606C16_Read_Reg(hadc,AD7606_REG_OPEN_DETECTED, &rx);
+	status = AD7606C16_ReadReg(hadc,AD7606_REG_OPEN_DETECTED, &rx);
 	if(status != HAL_OK)
 	{
 		return 0x99;
@@ -502,5 +466,43 @@ HAL_StatusTypeDef AD7606C16_Set_Diag_Mux_Ctrl(AD7606C16_Handle_t *hadc,AD7606C16
 	{
 		return HAL_ERROR;
 	}
+	HAL_StatusTypeDef status;
+	uint8_t reg = 0;
+	status = AD7606C16_ReadReg(hadc, (AD7606_REG_DIAG_MUX_CH1_CH2 + (ad7606c_channel_no/2)), &reg);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	if(ad7606c_channel_no % 2)
+	{
+		reg &= __UPPER_NIBBLE_MASK;
+		reg |= ad7606c_diag_mux;
+	}
+	else
+	{
+		reg &= __LOWER_NIBBLE_MASK;
+		reg |= ad7606c_diag_mux << 3;
+	}
 	return AD7606C16_Write(hadc, (AD7606_REG_DIAG_MUX_CH1_CH2 + (ad7606c_channel_no/2)), ad7606c_diag_mux);
+}
+HAL_StatusTypeDef AD7606_Get_Vltg_Value(AD7606C16_Handle_t *hadc,uint16_t *pData)
+{
+	if(hadc == NULL || hadc->hspi == NULL || hadc->CS_Port == NULL|| pData == NULL)
+	{
+		return HAL_ERROR;
+	}
+	HAL_StatusTypeDef status;
+
+	hadc->CONVST_Port->BSRR = (uint32_t)hadc->CONVST_Pin;
+	hadc->CONVST_Port->BSRR = (uint32_t)hadc->CONVST_Pin<<16;
+
+	while(hadc->BUSY_Port->IDR & hadc->BUSY_Pin);
+	HAL_Delay(1);
+	hadc->CS_Port->BSRR = ((uint32_t)hadc->CS_Pin << 16);
+
+	status = HAL_SPI_Receive(hadc->hspi,(uint8_t*)pData,8,HAL_MAX_DELAY);
+
+	hadc->CS_Port->BSRR = hadc->CS_Pin;
+
+	return status;
 }

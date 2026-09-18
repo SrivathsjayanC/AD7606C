@@ -154,10 +154,9 @@ typedef struct
 
 #define __UPPER_NIBBLE_MASK 0xF0
 #define __LOWER_NIBBLE_MASK 0x0F
-#define __AD7606C16_ADDR_POS 8U
+#define __AD7606C16_ADDR_POS 0x8U
 
 #define __AD7606C16_WRITE_READ_POS 14U
-#define __AD7606C16_WRITE 0x00U
 #define __AD7606C16_READ 0x01U
 
 #define __AD7606C16_WEN_POS 15U
@@ -178,11 +177,11 @@ typedef struct
 #define AD7606C16_DOUTX_4 0x02U
 #define AD7606C16_DOUTX_8 0x03U
 //@ext_os_clk
-#define AD7606C16_EXT_OS_CLK_DI 0x00U
-#define AD7606C16_EXT_OS_CLK_EN 0x01U
+#define AD7606C16_EXT_OS_CLK_DI RESET
+#define AD7606C16_EXT_OS_CLK_EN SET
 //@status_header
-#define AD7606C16_STATUS_HEAD_DI 0x00U
-#define AD7606C16_STATUS_HEAD_EN 0x01U
+#define AD7606C16_STATUS_HEAD_DI RESET
+#define AD7606C16_STATUS_HEAD_EN SET
 //@en_di
 #define ENABLE SET
 #define DISABLE RESET
@@ -193,7 +192,7 @@ typedef struct
 #define FLAG_SET SET
 #define FLAG_RESET RESET
 
-HAL_StatusTypeDef AD7606C16_Read_Reg(AD7606C16_Handle_t *hadc,AD7606C16_RegTypeDef_t reg,uint8_t *pData);
+HAL_StatusTypeDef AD7606C16_ReadReg(AD7606C16_Handle_t *hadc,AD7606C16_RegTypeDef_t reg,uint8_t *pData);
 HAL_StatusTypeDef AD7606C16_Init(AD7606C16_Handle_t *hadc);
 HAL_StatusTypeDef AD7606C16_Reset_Full(AD7606C16_Handle_t *hadc);
 HAL_StatusTypeDef AD7606C16_Set_Ch_Range(AD7606C16_Handle_t *hadc,AD7606C16_Channel_t channel_no,AD7606C16_Range_t range);
